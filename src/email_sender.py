@@ -213,8 +213,10 @@ def send_email(html_body: str, today: date) -> None:
         raise RuntimeError("RESEND_API_KEY is not set")
     resend.api_key = api_key
 
-    recipient = os.environ.get("DIGEST_RECIPIENT", "inside.banking.france@gmail.com")
-    sender = os.environ.get("DIGEST_SENDER", "Veille Inside Banking <onboarding@resend.dev>")
+    # `or` instead of dict default so we also fall back when the env var is set but empty
+    # (GitHub Actions injects "" when a `vars.X` reference resolves to undefined).
+    recipient = os.environ.get("DIGEST_RECIPIENT") or "inside.banking.france@gmail.com"
+    sender = os.environ.get("DIGEST_SENDER") or "Veille Inside Banking <onboarding@resend.dev>"
 
     date_str = today.strftime("%d/%m/%Y")
     subject = f"Veille Inside Banking — {date_str}"

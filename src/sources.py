@@ -9,7 +9,7 @@ from typing import Iterable
 import feedparser
 from dateutil import parser as date_parser
 
-from .config import LOOKBACK_HOURS, RSS_SOURCES
+from .config import FEEDPARSER_AGENT, LOOKBACK_HOURS, RSS_SOURCES
 
 
 @dataclass
@@ -57,10 +57,14 @@ def _parse_date(entry) -> datetime | None:
 
 def _fetch_feed(source: str, section: str, url: str, cutoff: datetime) -> list[Article]:
     try:
-        feed = feedparser.parse(url)
+        feed = feedparser.parse(url, agent=FEEDPARSER_AGENT)
     except Exception as e:
         print(f"[sources] failed to parse {source}/{section}: {e}")
         return []
+    if getattr(feed, "bozo", False) and not feed.entries:
+        # Log parsing errors when the feed is empty so we can diagnose.
+        err = getattr(feed, "bozo_exception", None)
+        print(f"[sources] {source}/{section}: parse warning ({err}), {len(feed.entries)} entries")
 
     articles: list[Article] = []
     for entry in feed.entries:

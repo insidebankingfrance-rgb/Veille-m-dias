@@ -13,10 +13,11 @@ CURATOR_MODEL = "claude-opus-4-8"
 WRITER_MODEL = "claude-opus-4-8"
 
 RSS_SOURCES = [
-    ("Les Échos", "Finance & Marchés", "https://services.lesechos.fr/rss/les-echos-finance-marches.xml"),
-    ("Les Échos", "Économie", "https://services.lesechos.fr/rss/les-echos-economie.xml"),
-    ("Les Échos", "Monde", "https://services.lesechos.fr/rss/les-echos-monde.xml"),
-    ("Les Échos", "Entreprises", "https://services.lesechos.fr/rss/les-echos-entreprises.xml"),
+    # Les Échos : flux RSS natifs (services.lesechos.fr) en backup, mais Google News est
+    # plus robuste (les flux natifs Les Échos rejettent parfois feedparser). On part en
+    # Google News RSS pour toutes les sources : même schéma, même fiabilité.
+    ("Les Échos", "Finance",
+     "https://news.google.com/rss/search?q=site:lesechos.fr+(finance+OR+banque+OR+marchés+OR+investissement+OR+crypto+OR+bourse)&hl=fr&gl=FR&ceid=FR:fr"),
 
     ("Bloomberg", "Finance",
      "https://news.google.com/rss/search?q=site:bloomberg.com+(finance+OR+banking+OR+markets+OR+crypto)&hl=en&gl=US&ceid=US:en"),
@@ -25,6 +26,9 @@ RSS_SOURCES = [
     ("Reuters", "Finance",
      "https://news.google.com/rss/search?q=site:reuters.com+(finance+OR+banking+OR+markets+OR+crypto)&hl=en&gl=US&ceid=US:en"),
 ]
+
+# User-Agent navigateur — certains flux RSS rejettent l'UA par défaut de feedparser.
+FEEDPARSER_AGENT = "Mozilla/5.0 (compatible; InsideBankingDigest/1.0; +https://github.com/insidebankingfrance-rgb/veille-m-dias)"
 
 
 def load_prompt(name: str) -> str:
