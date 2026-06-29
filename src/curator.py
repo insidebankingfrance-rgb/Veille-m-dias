@@ -6,6 +6,13 @@ from .config import GEO_SECTIONS, LINKEDIN_POST_COUNT, TOP_NEWS_COUNT
 from .sources import Article
 
 
+# Seuil minimum de pertinence pour qu'un article soit retenu.
+# Calibré pour qu'un article doive mentionner au moins un sujet phare de
+# la ligne éditoriale (banque française, crypto, IA finance, M&A…) et pas
+# seulement un mot générique comme « bourse » ou « rendement ».
+MIN_RELEVANCE_SCORE = 12
+
+
 class CuratedArticle(TypedDict):
     index: int
     geo: str
@@ -49,9 +56,33 @@ EDITORIAL_KEYWORDS: dict[str, int] = {
 }
 
 PENALTY_KEYWORDS: dict[str, int] = {
+    # Off-topic général
     "football": -25, "rugby": -25, "tennis": -25, "olympique": -20, "sport": -10,
     "people": -15, "célébrité": -20, "cinéma": -20, "musique": -15,
     "horoscope": -30, "météo": -20, "fait divers": -20,
+
+    # Stock-picking et conseils d'investissement individuels
+    # (vocabulaire newsletter trader, hors ligne éditoriale pédagogique)
+    "à prendre via": -40, "à prendre sur": -30,
+    "bonus cappés": -35, "bonus cappé": -35,
+    "warrant": -25, "turbo": -25, "leverage certificate": -25,
+    "objectif de cours": -30, "price target": -25,
+    "à acheter": -20, "à vendre": -20, "valeur à privilégier": -20,
+
+    # NAV reports et disclosures réglementaires automatisées
+    "net asset value": -50, " nav ": -40, "nav)": -40,
+    "ucits etf -": -40, "ucits etf –": -40,
+    "daily nav": -50, "weekly nav": -50,
+
+    # Analyst notes individuelles sur titres hors banque
+    "atteindre de nouveaux records": -20,
+    "voit l'éditeur": -30, "voit le titre": -25, "voit la marque": -25,
+    "relève son objectif": -20, "abaisse son objectif": -20,
+
+    # Jeux vidéo / divertissement / lifestyle
+    "jeu vidéo": -25, "jeux vidéo": -25, "gaming": -20,
+    "gta vi": -30, "rockstar games": -25, "take-two": -25,
+    "streaming vidéo": -15, "netflix": -10,
 }
 
 FRANCE_KEYWORDS: set[str] = {
@@ -132,11 +163,11 @@ def curate(articles: list[Article]) -> CurationResult:
     picked: list[tuple[int, Article, int, str]] = []
     picked_indices: set[int] = set()
 
-    # 1er passage : respecter les cibles géo
+    # 1er passage : respecter les cibles géo, en exigeant un score minimum
     for entry in scored:
         if len(picked) >= TOP_NEWS_COUNT:
             break
-        if entry[2] <= 0:
+        if entry[2] < MIN_RELEVANCE_SCORE:
             continue
         if geo_counts[entry[3]] >= geo_targets[entry[3]]:
             continue
@@ -144,11 +175,11 @@ def curate(articles: list[Article]) -> CurationResult:
         picked_indices.add(entry[0])
         geo_counts[entry[3]] += 1
 
-    # 2e passage : combler avec les meilleurs restants
+    # 2e passage : combler avec les meilleurs restants (même seuil minimum)
     for entry in scored:
         if len(picked) >= TOP_NEWS_COUNT:
             break
-        if entry[0] in picked_indices or entry[2] <= 0:
+        if entry[0] in picked_indices or entry[2] < MIN_RELEVANCE_SCORE:
             continue
         picked.append(entry)
         picked_indices.add(entry[0])
