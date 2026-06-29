@@ -31,7 +31,7 @@ jobs:
       - name: Send daily digest
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          DIGEST_RECIPIENT: ${{ vars.DIGEST_RECIPIENT || 'richard@inside-company.fr' }}
+          DIGEST_RECIPIENT: ${{ vars.DIGEST_RECIPIENT || 'inside.banking.france@gmail.com' }}
           DIGEST_SENDER: ${{ vars.DIGEST_SENDER }}
           FORCE_SEND: ${{ inputs.force_send && 'true' || 'false' }}
         run: python -m src.main

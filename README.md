@@ -23,7 +23,7 @@ Dans **Settings → Secrets and variables → Actions → New repository secret*
 
 ### 2. Variables optionnelles (Settings → Variables)
 
-- `DIGEST_RECIPIENT` — par défaut `richard@inside-company.fr`
+- `DIGEST_RECIPIENT` — par défaut `inside.banking.france@gmail.com`
 - `DIGEST_SENDER` — par défaut `Veille Inside Banking <onboarding@resend.dev>`. Pour expédier depuis `veille@inside-company.fr`, vérifie d'abord ton domaine sur resend.com.
 
 ### 3. Premier test

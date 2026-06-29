@@ -213,7 +213,7 @@ def send_email(html_body: str, today: date) -> None:
         raise RuntimeError("RESEND_API_KEY is not set")
     resend.api_key = api_key
 
-    recipient = os.environ.get("DIGEST_RECIPIENT", "richard@inside-company.fr")
+    recipient = os.environ.get("DIGEST_RECIPIENT", "inside.banking.france@gmail.com")
     sender = os.environ.get("DIGEST_SENDER", "Veille Inside Banking <onboarding@resend.dev>")
 
     date_str = today.strftime("%d/%m/%Y")
