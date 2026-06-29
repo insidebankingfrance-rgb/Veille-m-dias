@@ -2,8 +2,8 @@ name: Daily finance digest
 
 on:
   schedule:
-    # 5h UTC = 7h Paris (CEST, summer) | 6h UTC = 7h Paris (CET, winter)
-    # The script checks the actual Paris hour and only sends when it is 7h.
+    # 5h UTC = 7h Paris (CEST, été) | 6h UTC = 7h Paris (CET, hiver)
+    # Le script vérifie l'heure réelle Europe/Paris et n'envoie que si elle vaut 7h.
     - cron: "0 5 * * *"
     - cron: "0 6 * * *"
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
 jobs:
   digest:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,6 @@ jobs:
 
       - name: Send daily digest
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DIGEST_RECIPIENT: ${{ vars.DIGEST_RECIPIENT || 'richard@inside-company.fr' }}
           DIGEST_SENDER: ${{ vars.DIGEST_SENDER }}

@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
 from typing import TypedDict
 
-import anthropic
-
-from .config import CURATOR_MODEL, GEO_SECTIONS, LINKEDIN_POST_COUNT, TOP_NEWS_COUNT, load_prompt
+from .config import GEO_SECTIONS, LINKEDIN_POST_COUNT, TOP_NEWS_COUNT
 from .sources import Article
 
 
@@ -22,92 +19,154 @@ class CurationResult(TypedDict):
     linkedin_picks: list[int]
 
 
-CURATOR_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "top_news": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "index": {"type": "integer", "description": "Index of the article in the input list (0-based)"},
-                    "geo": {"type": "string", "enum": GEO_SECTIONS},
-                    "relevance_score": {"type": "integer", "minimum": 0, "maximum": 100,
-                                         "description": "How well this matches the editorial line (0-100)"},
-                    "angle": {"type": "string", "description": "One-sentence angle explaining why this matters for Inside Banking"},
-                    "rank": {"type": "integer", "minimum": 1, "description": "Overall rank (1 = top story)"},
-                },
-                "required": ["index", "geo", "relevance_score", "angle", "rank"],
-            },
-        },
-        "linkedin_picks": {
-            "type": "array",
-            "items": {"type": "integer"},
-            "description": "Indices (from the input list) of the 3 articles BEST suited to LinkedIn posts in Richard's editorial line",
-        },
-    },
-    "required": ["top_news", "linkedin_picks"],
+# Mots-clés pondérés selon la ligne éditoriale d'Inside Banking.
+# Les acteurs/sujets phares pèsent plus lourd.
+EDITORIAL_KEYWORDS: dict[str, int] = {
+    # Grandes banques françaises (cœur de ligne)
+    "bnp paribas": 12, "société générale": 12, "crédit agricole": 12, "bpce": 12,
+    "crédit mutuel": 10, "boursobank": 10, "natixis": 9, "banque de france": 9,
+    "caisse d'épargne": 8, "banque populaire": 8, "axa": 6,
+    # Régulateurs / institutions
+    "bce": 9, "ecb": 9, "fed": 8, "amf": 9, "sec ": 7, "treasury": 6,
+    # Vocabulaire bancaire
+    "banque": 6, "banques": 7, "banking": 5, "bank ": 5,
+    "fintech": 8, "néobanque": 8, "neobank": 7, "challenger bank": 7,
+    # Investissement / marchés
+    "etf": 9, "etn": 8, "obligation": 6, "obligations": 6, "actions": 5,
+    "bourse": 7, "marchés": 5, "investissement": 7, "allocation": 6,
+    "rendement": 5, "dividende": 5, "private equity": 6, "capital-investissement": 6,
+    # Crypto / tokenisation
+    "crypto": 10, "cryptomonnaie": 10, "cryptomonnaies": 10,
+    "bitcoin": 9, "ethereum": 8, "solana": 6, "stablecoin": 10, "stablecoins": 10,
+    "tokenisation": 10, "tokenization": 10, "blockchain": 7, "defi": 8,
+    # IA et finance
+    "intelligence artificielle": 9, "genai": 9, "machine learning": 7,
+    "llm": 7, "openai": 6, "anthropic": 7, "mistral": 6,
+    # Stratégie / corporate
+    "résultats": 5, "trimestriels": 6, "annuels": 5, "stratégie": 5,
+    "transformation": 6, "acquisition": 7, "fusion": 7, "m&a": 8,
+    "régulation": 6, "supervision": 5, "compliance": 5,
+}
+
+PENALTY_KEYWORDS: dict[str, int] = {
+    "football": -25, "rugby": -25, "tennis": -25, "olympique": -20, "sport": -10,
+    "people": -15, "célébrité": -20, "cinéma": -20, "musique": -15,
+    "horoscope": -30, "météo": -20, "fait divers": -20,
+}
+
+FRANCE_KEYWORDS: set[str] = {
+    "france", "français", "française", "françaises", "paris", "macron", "matignon",
+    "bercy", "bnp paribas", "société générale", "crédit agricole", "bpce",
+    "crédit mutuel", "boursobank", "natixis", "banque de france", "amf",
+    "caisse d'épargne", "banque populaire", "axa",
+}
+
+EUROPE_KEYWORDS: set[str] = {
+    "europe", "european", "européen", "européenne", "européens", "ue ",
+    "union européenne", "eurozone", "zone euro", "bce", "ecb",
+    "allemagne", "allemand", "italie", "italien", "espagne", "espagnol",
+    "royaume-uni", "uk ", "london", "londres", "suisse", "irlande",
+    "deutsche bank", "santander", "ubs", "credit suisse", "ing ", "barclays",
+    "hsbc", "bbva", "intesa", "unicredit", "lloyds", "natwest",
+}
+
+US_KEYWORDS: set[str] = {
+    " us ", "u.s.", "united states", "america", "american", "wall street",
+    "federal reserve", " fed ", "sec ", "nyse", "nasdaq", "trump", "biden",
+    "treasury", "white house", "dollar",
+    "jpmorgan", "jp morgan", "goldman", "morgan stanley", "bank of america",
+    "citigroup", "wells fargo", "blackrock", "vanguard", "fidelity",
 }
 
 
-def _format_articles_for_prompt(articles: list[Article]) -> str:
-    lines = []
-    for i, art in enumerate(articles):
-        lines.append(
-            f"[{i}] {art.source} ({art.section}) — {art.published.strftime('%Y-%m-%d %H:%M UTC')}\n"
-            f"    Titre : {art.title}\n"
-            f"    Résumé : {art.summary or '(pas de résumé fourni par le flux)'}\n"
-            f"    Lien : {art.link}"
-        )
-    return "\n\n".join(lines)
+def _normalize(text: str) -> str:
+    return (" " + text.lower() + " ").replace("\n", " ")
+
+
+def _score_relevance(article: Article) -> int:
+    text = _normalize(article.title + " " + article.summary)
+    score = 0
+    for kw, weight in EDITORIAL_KEYWORDS.items():
+        if kw in text:
+            score += weight
+    for kw, penalty in PENALTY_KEYWORDS.items():
+        if kw in text:
+            score += penalty
+    return max(0, min(100, score))
+
+
+def _classify_geo(article: Article) -> str:
+    text = _normalize(article.title + " " + article.summary)
+    scores: dict[str, float] = {
+        "France": sum(2 for kw in FRANCE_KEYWORDS if kw in text),
+        "Europe": sum(2 for kw in EUROPE_KEYWORDS if kw in text),
+        "États-Unis": sum(2 for kw in US_KEYWORDS if kw in text),
+    }
+    # Indice source (faible poids — surchargé par les mots-clés du texte)
+    if article.source == "Les Échos":
+        scores["France"] += 1
+    elif article.source == "Financial Times":
+        scores["Europe"] += 1
+    elif article.source == "Bloomberg":
+        scores["États-Unis"] += 1
+
+    if max(scores.values()) == 0:
+        return "Reste du monde"
+    return max(scores, key=lambda k: scores[k])
 
 
 def curate(articles: list[Article]) -> CurationResult:
     if not articles:
         return {"top_news": [], "linkedin_picks": []}
 
-    client = anthropic.Anthropic()
-    style_reference = load_prompt("style_reference.md")
+    scored = [
+        (i, art, _score_relevance(art), _classify_geo(art))
+        for i, art in enumerate(articles)
+    ]
+    # Tri : score décroissant, puis fraîcheur décroissante
+    scored.sort(key=lambda x: (-x[2], -x[1].published.timestamp()))
 
-    system_prompt = f"""Tu es l'éditeur de la veille quotidienne d'Inside Banking, la marque média de Richard Michaud.
+    # Cibles géo (best-effort, non strict)
+    geo_targets = {"France": 4, "Europe": 3, "États-Unis": 2, "Reste du monde": 2}
+    geo_counts = {g: 0 for g in GEO_SECTIONS}
+    picked: list[tuple[int, Article, int, str]] = []
+    picked_indices: set[int] = set()
 
-Ton rôle : sélectionner les {TOP_NEWS_COUNT} actualités financières les plus pertinentes des dernières 24 heures, en t'appuyant strictement sur la ligne éditoriale ci-dessous.
+    # 1er passage : respecter les cibles géo
+    for entry in scored:
+        if len(picked) >= TOP_NEWS_COUNT:
+            break
+        if entry[2] <= 0:
+            continue
+        if geo_counts[entry[3]] >= geo_targets[entry[3]]:
+            continue
+        picked.append(entry)
+        picked_indices.add(entry[0])
+        geo_counts[entry[3]] += 1
 
-{style_reference}
+    # 2e passage : combler avec les meilleurs restants
+    for entry in scored:
+        if len(picked) >= TOP_NEWS_COUNT:
+            break
+        if entry[0] in picked_indices or entry[2] <= 0:
+            continue
+        picked.append(entry)
+        picked_indices.add(entry[0])
 
-Règles de curation :
-1. Sélectionne au maximum {TOP_NEWS_COUNT} articles classés du plus pertinent (rank=1) au moins pertinent.
-2. Réparties-les sur 4 zones géographiques : France, Europe, États-Unis, Reste du monde. Vise un équilibre : idéalement 3-4 France, 2-3 Europe, 2-3 US, 1-2 Reste du monde.
-3. Note chaque article de 0 à 100 selon sa pertinence pour la ligne éditoriale (transformations bancaires, investissement Bourse, crypto/stablecoins/tokenisation, IA appliquée à la finance, vulgarisation financière).
-4. Écarte le bruit : faits divers, communiqués corporate sans portée stratégique, brèves sans information neuve.
-5. Pour chaque article retenu, écris un `angle` en UNE phrase expliquant pourquoi cet article mérite d'être lu par un décideur du secteur financier.
-6. Identifie les **3 articles parfaits pour un post LinkedIn** : ceux qui combinent (a) forte pertinence éditoriale, (b) angle pédagogique/décryptage évident, (c) chiffres ou faits saillants exploitables, (d) résonance avec les sujets phares de Richard.
+    top_news: list[CuratedArticle] = [
+        {
+            "index": idx,
+            "geo": geo,
+            "relevance_score": score,
+            "angle": "",
+            "rank": rank,
+        }
+        for rank, (idx, _art, score, geo) in enumerate(picked, 1)
+    ]
 
-Retourne ta réponse via l'outil `submit_curation`."""
+    # 3 articles avec le meilleur score pour les posts LinkedIn
+    linkedin_picks = [item["index"] for item in top_news[:LINKEDIN_POST_COUNT]]
 
-    user_message = f"""Voici les {len(articles)} articles candidats des dernières 24h. Sélectionne, classe et identifie les 3 meilleurs candidats pour LinkedIn.
-
-{_format_articles_for_prompt(articles)}"""
-
-    response = client.messages.create(
-        model=CURATOR_MODEL,
-        max_tokens=8000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        system=system_prompt,
-        tools=[{
-            "name": "submit_curation",
-            "description": "Submit the curated list of top news with geo categorization, relevance scores, and LinkedIn post picks.",
-            "input_schema": CURATOR_SCHEMA,
-        }],
-        tool_choice={"type": "tool", "name": "submit_curation"},
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    for block in response.content:
-        if block.type == "tool_use" and block.name == "submit_curation":
-            return block.input  # type: ignore[return-value]
-
-    raise RuntimeError("Curator did not return a tool_use block")
+    print(f"[curator] {len(top_news)} articles retenus, "
+          f"répartition : {dict(geo_counts)}")
+    return {"top_news": top_news, "linkedin_picks": linkedin_picks}

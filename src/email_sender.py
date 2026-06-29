@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import os
+import urllib.parse
 from datetime import date
 
 import resend
@@ -9,7 +10,25 @@ import resend
 from .config import GEO_SECTIONS
 from .curator import CurationResult
 from .sources import Article
-from .writer import LinkedInPost
+
+
+CLAUDE_AI_BASE = "https://claude.ai/new"
+
+# Prompt compact embarqué dans l'URL du deep-link (limite ~5-7K chars URL-encoded).
+COMPACT_STYLE_BRIEF = """Tu es Richard Michaud (Inside Banking). Tu vulgarises la finance pour des décideurs du secteur, en français.
+
+STYLE À IMITER STRICTEMENT :
+- Phrases courtes. Paragraphes courts (1-2 lignes).
+- Accroche directe en 1-2 lignes qui pose le sujet.
+- Structure : contexte → constat → points clés (flèches → et puces colorées 🟢🔴🟣🟠 pour distinguer acteurs/angles) → synthèse stratégique → ouverture.
+- Chiffres précis (Md€, %, dates) systématiques quand l'article les fournit.
+- Connecteurs récurrents : "Le point commun ?", "Les différences ?", "Les sujets à avoir en tête 👇".
+- Clôture par "À suivre 🚀" ou une question stratégique ouverte.
+- 250 à 450 mots par post. Pas de hashtags. Pas de "Bonjour LinkedIn".
+- 1ère personne avec parcimonie ("Je décrypte", "À mon sens"…).
+- N'invente JAMAIS de chiffres ou faits hors article ; si l'info manque, reste plus généraliste.
+
+Pour CHAQUE article ci-dessous, rédige UN post LinkedIn complet, prêt à publier dans mon style."""
 
 
 def _esc(s: str) -> str:
@@ -22,7 +41,6 @@ def _section_html(geo: str, items: list[tuple[Article, dict]]) -> str:
     cards = []
     for art, meta in items:
         score = meta.get("relevance_score", "")
-        angle = meta.get("angle", "")
         cards.append(f"""
             <div style="margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid #e5e7eb;">
               <div style="font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:#6b7280;margin-bottom:6px;">
@@ -35,9 +53,6 @@ def _section_html(geo: str, items: list[tuple[Article, dict]]) -> str:
               </a>
               <div style="font-size:14px;color:#374151;line-height:1.5;margin-bottom:10px;">
                 {_esc(art.summary)}
-              </div>
-              <div style="font-size:13px;color:#1e3a8a;font-style:italic;margin-bottom:10px;">
-                ▸ {_esc(angle)}
               </div>
               <a href="{_esc(art.link)}" style="font-size:13px;color:#1e3a8a;text-decoration:underline;">
                 Lire l'article →
@@ -52,48 +67,75 @@ def _section_html(geo: str, items: list[tuple[Article, dict]]) -> str:
     """
 
 
-def _linkedin_html(posts: list[LinkedInPost], articles_by_index: dict[int, Article]) -> str:
-    if not posts:
+def _build_linkedin_prompt(picks: list[Article]) -> str:
+    """Construit le prompt complet à coller dans Claude.ai pour générer les 3 posts."""
+    parts = [COMPACT_STYLE_BRIEF, "", "ARTICLES SÉLECTIONNÉS POUR AUJOURD'HUI :", ""]
+    for i, art in enumerate(picks, 1):
+        parts.append(f"--- ARTICLE {i} ---")
+        parts.append(f"Source : {art.source} ({art.section})")
+        parts.append(f"Titre : {art.title}")
+        parts.append(f"Résumé : {art.summary or '(résumé non fourni par le flux)'}")
+        parts.append(f"Lien : {art.link}")
+        parts.append("")
+    parts.append("Rédige les 3 posts maintenant, séparés clairement (Post 1, Post 2, Post 3).")
+    return "\n".join(parts)
+
+
+def _claude_cta_html(picks: list[Article]) -> str:
+    if not picks:
         return ""
-    blocks = []
-    for i, post in enumerate(posts, 1):
-        art = articles_by_index.get(post["article_index"])
-        source_line = ""
-        if art:
-            source_line = f"""
-              <div style="font-size:12px;color:#6b7280;margin-bottom:10px;">
-                Source : <a href="{_esc(art.link)}" style="color:#1e3a8a;">{_esc(art.source)} — {_esc(art.title)}</a>
-              </div>
-            """
-        body = _esc(post["post"]).replace("\n", "<br>")
-        blocks.append(f"""
-            <div style="margin-bottom:28px;padding:20px;background:#f8fafc;border-left:4px solid #1e3a8a;border-radius:4px;">
-              <div style="font-size:13px;letter-spacing:0.5px;text-transform:uppercase;color:#1e3a8a;font-weight:600;margin-bottom:10px;">
-                Post LinkedIn #{i}
-              </div>
-              {source_line}
-              <div style="font-size:14px;line-height:1.6;color:#0f172a;white-space:pre-wrap;font-family:'Helvetica Neue',Arial,sans-serif;">
-                {body}
-              </div>
-            </div>
-        """)
+
+    prompt_text = _build_linkedin_prompt(picks)
+    deep_link = f"{CLAUDE_AI_BASE}?q={urllib.parse.quote(prompt_text)}"
+
+    picks_summary = "".join(
+        f"<li style='margin-bottom:6px;'><strong>{_esc(art.source)}</strong> — "
+        f"<a href='{_esc(art.link)}' style='color:#1e3a8a;'>{_esc(art.title)}</a></li>"
+        for art in picks
+    )
+
     return f"""
         <h2 style="font-size:20px;color:#0f172a;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin:40px 0 16px;">
-          ✍️ 3 posts LinkedIn prêts à publier
+          ✍️ Générer 3 posts LinkedIn
         </h2>
-        {''.join(blocks)}
+
+        <div style="font-size:14px;color:#374151;line-height:1.5;margin-bottom:14px;">
+          Les 3 articles les plus pertinents pour ta ligne éditoriale :
+        </div>
+        <ol style="font-size:14px;color:#0f172a;line-height:1.5;padding-left:20px;margin:0 0 20px 0;">
+          {picks_summary}
+        </ol>
+
+        <div style="text-align:center;margin:24px 0;">
+          <a href="{_esc(deep_link)}"
+             style="display:inline-block;background:#1e3a8a;color:#ffffff;padding:14px 28px;
+                    font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
+            🚀 Générer les 3 posts dans Claude.ai
+          </a>
+        </div>
+
+        <div style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:24px;">
+          Le bouton ouvre Claude.ai avec un prompt pré-rempli — il suffit d'envoyer.
+        </div>
+
+        <details style="margin-top:24px;padding:16px;background:#f8fafc;border-left:4px solid #1e3a8a;border-radius:4px;">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#1e3a8a;letter-spacing:0.3px;text-transform:uppercase;">
+            Voir / copier le prompt complet (pour relancer manuellement)
+          </summary>
+          <pre style="margin:14px 0 0;padding:14px;background:#ffffff;border:1px solid #e5e7eb;border-radius:4px;
+                      font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#0f172a;
+                      white-space:pre-wrap;word-break:break-word;max-width:100%;overflow-x:auto;">{_esc(prompt_text)}</pre>
+        </details>
     """
 
 
 def build_html(
     curation: CurationResult,
     articles: list[Article],
-    posts: list[LinkedInPost],
     today: date,
 ) -> str:
     articles_by_index = {i: art for i, art in enumerate(articles)}
 
-    # Group curated articles by geo, preserving rank order
     grouped: dict[str, list[tuple[Article, dict]]] = {g: [] for g in GEO_SECTIONS}
     sorted_top = sorted(curation["top_news"], key=lambda x: x.get("rank", 99))
     for meta in sorted_top:
@@ -105,7 +147,9 @@ def build_html(
             grouped[geo].append((articles_by_index[idx], meta))
 
     sections_html = "".join(_section_html(geo, grouped[geo]) for geo in GEO_SECTIONS)
-    linkedin_block = _linkedin_html(posts, articles_by_index)
+
+    picks = [articles_by_index[i] for i in curation["linkedin_picks"] if i in articles_by_index]
+    cta_html = _claude_cta_html(picks)
 
     date_str = today.strftime("%A %d %B %Y")
     fr_months = {
@@ -142,14 +186,14 @@ def build_html(
                 {date_str}
               </h1>
               <div style="font-size:14px;color:#6b7280;">
-                Top {len(sorted_top)} actualités finance · {len(posts)} posts LinkedIn générés
+                Top {len(sorted_top)} actualités finance · {len(picks)} candidats LinkedIn
               </div>
             </td>
           </tr>
           <tr>
             <td style="padding:24px 36px 36px;">
               {sections_html}
-              {linkedin_block}
+              {cta_html}
               <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;">
                 Veille générée automatiquement · Sources : Les Échos, Bloomberg, FT, Reuters
               </div>

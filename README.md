@@ -1,51 +1,58 @@
 # Veille Inside Banking
 
-Agent quotidien qui envoie à 7h (Europe/Paris) :
-- Le top 10 des actualités finance (Les Échos, Bloomberg, FT, Reuters), réparties par zone géo (France / Europe / US / Reste du monde).
-- 3 propositions de posts LinkedIn dans le style d'Inside Banking, générés à partir des 3 news les plus pertinentes.
+Agent quotidien qui envoie chaque matin à 7h (Europe/Paris) un email contenant :
 
-## Stack
+- **Top 10 des actualités finance** issues de Les Échos, Bloomberg, FT et Reuters, classées par zone géo (France / Europe / US / Reste du monde).
+- **Un bouton « Générer 3 posts LinkedIn dans Claude.ai »** qui pré-remplit Claude.ai avec les 3 articles les plus pertinents + ton style éditorial, prêt à envoyer en un clic.
 
-- **GitHub Actions** : cron quotidien (5h et 6h UTC, le script vérifie qu'il est 7h Paris).
-- **Claude Opus 4.8** (`claude-opus-4-8`) avec adaptive thinking pour la curation et la rédaction.
-- **RSS** : flux natifs Les Échos + Google News RSS (avec filtre `site:`) pour Bloomberg / FT / Reuters.
+## Stack — 100% gratuit
+
+- **GitHub Actions** : cron quotidien à 5h et 6h UTC (le script vérifie l'heure Paris).
+- **Curation heuristique** : pondération par mots-clés de la ligne éditoriale (banques françaises, ETF, crypto, IA en finance) + classification géo par mots-clés et source.
+- **Pas d'appel API LLM** : la génération des posts se fait dans Claude.ai (utilise ton abonnement existant Pro/Max).
 - **Resend** pour l'envoi de l'email HTML.
 
 ## Setup
 
-### 1. Secrets GitHub à configurer
+### 1. Clé Resend dans GitHub Secrets
 
 Dans **Settings → Secrets and variables → Actions → New repository secret** :
 
-- `ANTHROPIC_API_KEY` — clé API Claude (console.anthropic.com)
-- `RESEND_API_KEY` — clé API Resend (resend.com)
+- Nom : `RESEND_API_KEY`
+- Valeur : ta clé `re_…` (resend.com)
 
-### 2. Variables (optionnelles, dans **Settings → Variables**)
+### 2. Variables optionnelles (Settings → Variables)
 
 - `DIGEST_RECIPIENT` — par défaut `richard@inside-company.fr`
-- `DIGEST_SENDER` — par défaut `Veille Inside Banking <onboarding@resend.dev>`. Pour utiliser une vraie adresse @inside-company.fr, vérifie le domaine sur resend.com puis mets `Veille Inside Banking <veille@inside-company.fr>`.
+- `DIGEST_SENDER` — par défaut `Veille Inside Banking <onboarding@resend.dev>`. Pour expédier depuis `veille@inside-company.fr`, vérifie d'abord ton domaine sur resend.com.
 
-### 3. Tester localement
+### 3. Premier test
+
+Onglet **Actions → Daily finance digest → Run workflow** (l'input `force_send` est à `true` par défaut). Tu reçois l'email dans la minute.
+
+### 4. Test local (optionnel)
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env  # remplis les clés
+cp .env.example .env  # renseigne RESEND_API_KEY
 export $(cat .env | xargs)
 FORCE_SEND=true python -m src.main
 ```
 
-### 4. Tester en GitHub Action
+## Comment ça marche, au quotidien
 
-Onglet **Actions → Daily finance digest → Run workflow** (l'input `force_send` est à `true` par défaut pour ce déclenchement manuel).
+1. Le matin à 7h, tu reçois l'email avec le top 10 des news.
+2. Tu cliques sur **« 🚀 Générer les 3 posts dans Claude.ai »** : Claude.ai s'ouvre avec un prompt déjà rempli (3 articles + ton style).
+3. Tu envoies, Claude te génère les 3 posts. Tu choisis, tu copies, tu postes.
 
-## Tuner le style des posts
+Si le prompt pré-rempli ne suffit pas ou si tu veux affiner, l'email contient aussi un bloc dépliable **« Voir / copier le prompt complet »** que tu peux coller manuellement dans Claude.ai pour une qualité optimale.
 
-Édite `prompts/style_reference.md` — c'est le few-shot qui définit la voix. Plus tu y mets de posts récents et bien écrits, mieux Claude imitera ton style.
+## Tuner la ligne éditoriale
 
-## Tuner les sources
+- **Pondération des sujets** : `src/curator.py` → dictionnaire `EDITORIAL_KEYWORDS`. Ajoute / retire des mots-clés pour orienter la curation (ex. donner plus de poids à « tokenisation » ou pénaliser un thème).
+- **Style des posts** : `src/email_sender.py` → constante `COMPACT_STYLE_BRIEF` (le brief embarqué dans le prompt Claude.ai).
+- **Sources RSS** : `src/config.py` → liste `RSS_SOURCES`. Tu peux ajouter d'autres médias en flux natif, ou en passant par Google News RSS :
 
-Édite la liste `RSS_SOURCES` dans `src/config.py`. Pour ajouter un média, soit utilise un flux RSS natif, soit un flux Google News avec filtre `site:` :
-
-```
-https://news.google.com/rss/search?q=site:agefi.fr+finance&hl=fr&gl=FR&ceid=FR:fr
-```
+  ```
+  https://news.google.com/rss/search?q=site:agefi.fr+finance&hl=fr&gl=FR&ceid=FR:fr
+  ```
