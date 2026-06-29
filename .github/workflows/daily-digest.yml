@@ -1,0 +1,38 @@
+name: Daily finance digest
+
+on:
+  schedule:
+    # 5h UTC = 7h Paris (CEST, summer) | 6h UTC = 7h Paris (CET, winter)
+    # The script checks the actual Paris hour and only sends when it is 7h.
+    - cron: "0 5 * * *"
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force_send:
+        description: "Bypass the 7h-Paris guard and send immediately"
+        type: boolean
+        default: true
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Send daily digest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_RECIPIENT: ${{ vars.DIGEST_RECIPIENT || 'richard@inside-company.fr' }}
+          DIGEST_SENDER: ${{ vars.DIGEST_SENDER }}
+          FORCE_SEND: ${{ inputs.force_send && 'true' || 'false' }}
+        run: python -m src.main
