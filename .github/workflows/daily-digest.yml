@@ -2,10 +2,11 @@ name: Daily finance digest
 
 on:
   schedule:
-    # 5h UTC = 7h Paris (CEST, été) | 6h UTC = 7h Paris (CET, hiver)
-    # Le script vérifie l'heure réelle Europe/Paris et n'envoie que si elle vaut 7h.
+    # 5h UTC = 7h Paris (CEST, été) | 5h UTC = 6h Paris (CET, hiver, 1h en avance acceptable).
+    # Les crons GitHub Actions sont best-effort et peuvent être retardés de 4-6h ;
+    # le script accepte tout déclenchement entre 5h et 14h Paris pour qu'un cron
+    # tardif envoie quand même l'email du matin (plutôt qu'un envoi silencieusement sauté).
     - cron: "0 5 * * *"
-    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       force_send:

@@ -11,16 +11,21 @@ from .sources import fetch_recent_articles
 
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
-TARGET_HOUR = 7
+# Fenêtre d'envoi acceptée : matin élargi pour tolérer les retards de cron GitHub.
+# Observé : les crons GitHub peuvent être retardés de 4 à 6h (best-effort). On
+# accepte donc tout déclenchement entre 5h et 14h Paris pour qu'un cron retardé
+# envoie quand même la veille, plutôt que d'être silencieusement sauté.
+ALLOWED_PARIS_HOURS = range(5, 15)  # 5h, 6h, …, 14h inclus
 
 
 def _should_run() -> bool:
     if os.environ.get("FORCE_SEND", "").lower() in ("1", "true", "yes"):
         return True
     now_paris = datetime.now(PARIS_TZ)
-    if now_paris.hour == TARGET_HOUR:
+    if now_paris.hour in ALLOWED_PARIS_HOURS:
         return True
-    print(f"[main] Paris hour is {now_paris.hour}h, not {TARGET_HOUR}h — skipping. "
+    print(f"[main] Paris hour is {now_paris.hour}h, outside allowed window "
+          f"{ALLOWED_PARIS_HOURS.start}-{ALLOWED_PARIS_HOURS.stop - 1}h — skipping. "
           f"Set FORCE_SEND=true to bypass.")
     return False
 
