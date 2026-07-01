@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import date, datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .curator import curate
@@ -11,6 +12,7 @@ from .sources import fetch_recent_articles
 
 
 PARIS_TZ = ZoneInfo("Europe/Paris")
+SENT_MARKER = Path(".sent-marker")
 # Fenêtre d'envoi acceptée : matin élargi pour tolérer les retards de cron GitHub.
 # Observé : les crons GitHub peuvent être retardés de 4 à 6h (best-effort). On
 # accepte donc tout déclenchement entre 5h et 14h Paris pour qu'un cron retardé
@@ -52,6 +54,14 @@ def run() -> int:
 
     html_body = build_html(curation, articles, today)
     send_email(html_body, today)
+
+    # Marqueur d'envoi effectif — le workflow s'en sert pour le dedup via cache.
+    # N'est écrit QUE si send_email() a réussi (pas de fallback sur les guards).
+    SENT_MARKER.write_text(
+        datetime.now(PARIS_TZ).isoformat(timespec="seconds"),
+        encoding="utf-8",
+    )
+    print(f"[main] sent-marker written to {SENT_MARKER}")
     return 0
 
 

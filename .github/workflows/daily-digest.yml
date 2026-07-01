@@ -2,15 +2,23 @@ name: Daily finance digest
 
 on:
   schedule:
-    # 5h UTC = 7h Paris (CEST, été) | 5h UTC = 6h Paris (CET, hiver, 1h en avance acceptable).
-    # Les crons GitHub Actions sont best-effort et peuvent être retardés de 4-6h ;
-    # le script accepte tout déclenchement entre 5h et 14h Paris pour qu'un cron
-    # tardif envoie quand même l'email du matin (plutôt qu'un envoi silencieusement sauté).
-    - cron: "0 5 * * *"
+    # GitHub Actions cron est "best-effort" et peut être retardé de 4-6h sur le
+    # tier gratuit. On multiplie les tentatives sur des minutes off-hour (13/43)
+    # pour maximiser la chance qu'au moins une passe dans la fenêtre matinale.
+    # Le dedup via cache s'assure qu'un seul email part par jour.
+    - cron: "13 3 * * *"   # 5h13 Paris (été) — première tentative
+    - cron: "43 3 * * *"   # 5h43 Paris
+    - cron: "13 4 * * *"   # 6h13 Paris
+    - cron: "43 4 * * *"   # 6h43 Paris
+    - cron: "13 5 * * *"   # 7h13 Paris — cible
+  # Déclencheur externe fiable : cron-job.org (ou équivalent) peut poster
+  # sur POST /repos/.../dispatches avec {"event_type":"daily-digest"} à 7h pile.
+  repository_dispatch:
+    types: [daily-digest]
   workflow_dispatch:
     inputs:
       force_send:
-        description: "Bypass the 7h-Paris guard and send immediately"
+        description: "Bypass Paris-hour window guard AND same-day dedup"
         type: boolean
         default: true
 
@@ -21,18 +29,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Compute today's Paris date
+        id: date
+        run: echo "value=$(TZ=Europe/Paris date +%F)" >> $GITHUB_OUTPUT
+
+      - name: Restore today's send marker (dedup)
+        id: dedup
+        uses: actions/cache/restore@v4
+        with:
+          path: .sent-marker
+          key: veille-sent-${{ steps.date.outputs.value }}
+
+      - name: Compute should_run
+        id: gate
+        run: |
+          if [ "${{ steps.dedup.outputs.cache-hit }}" = "true" ] && [ "${{ inputs.force_send }}" != "true" ]; then
+            echo "run=false" >> $GITHUB_OUTPUT
+            echo "[dedup] Marker cache-hit for ${{ steps.date.outputs.value }} — email already sent today. Skipping."
+          else
+            echo "run=true" >> $GITHUB_OUTPUT
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
         run: pip install -r requirements.txt
 
       - name: Send daily digest
+        if: steps.gate.outputs.run == 'true'
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DIGEST_RECIPIENT: ${{ vars.DIGEST_RECIPIENT || 'inside.banking.france@gmail.com' }}
           DIGEST_SENDER: ${{ vars.DIGEST_SENDER }}
           FORCE_SEND: ${{ inputs.force_send && 'true' || 'false' }}
         run: python -m src.main
+
+      - name: Save send marker (only if email was actually sent)
+        if: steps.gate.outputs.run == 'true' && hashFiles('.sent-marker') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: .sent-marker
+          key: veille-sent-${{ steps.date.outputs.value }}
