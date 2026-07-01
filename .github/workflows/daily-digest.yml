@@ -1,20 +1,15 @@
 name: Daily finance digest
 
 on:
-  schedule:
-    # GitHub Actions cron est "best-effort" et peut être retardé de 4-6h sur le
-    # tier gratuit. On multiplie les tentatives sur des minutes off-hour (13/43)
-    # pour maximiser la chance qu'au moins une passe dans la fenêtre matinale.
-    # Le dedup via cache s'assure qu'un seul email part par jour.
-    - cron: "13 3 * * *"   # 5h13 Paris (été) — première tentative
-    - cron: "43 3 * * *"   # 5h43 Paris
-    - cron: "13 4 * * *"   # 6h13 Paris
-    - cron: "43 4 * * *"   # 6h43 Paris
-    - cron: "13 5 * * *"   # 7h13 Paris — cible
-  # Déclencheur externe fiable : cron-job.org (ou équivalent) peut poster
-  # sur POST /repos/.../dispatches avec {"event_type":"daily-digest"} à 7h pile.
+  # Déclencheur PRINCIPAL — cron-job.org (fiable, gratuit) poste à 7h Paris pile
+  # sur POST /repos/.../dispatches avec {"event_type":"daily-digest"}.
   repository_dispatch:
     types: [daily-digest]
+  schedule:
+    # Filet de sécurité si cron-job.org rate un tir. 7h UTC = 9h Paris (été) /
+    # 8h Paris (hiver), soit ~1-2h après le déclencheur principal.
+    # Grâce au dedup via cache, aucun risque de doublon avec l'envoi de 7h.
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
       force_send:
