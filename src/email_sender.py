@@ -44,11 +44,7 @@ CHECK FINAL :
 Avant de me donner le post, relis-le. Supprime tout guillemet de cadrage, tout tiret cadratin dans une phrase, toute formule de la liste interdite. Réécris sec et direct, conversationnel.
 
 IDÉES D'ILLUSTRATION :
-À la fin de CHAQUE post, ajoute un bloc séparé "💡 Idées d'illustration" avec 2-3 propositions concrètes. Une phrase chacune : QUOI montrer + FORMAT (tableau comparatif chiffré, infographie, graphique, photo conceptuelle, schéma).
-
-Pour CHACUN des 3 articles ci-dessous, livre :
-1. Le post LinkedIn complet (prêt à copier)
-2. Le bloc "💡 Idées d'illustration" """
+À la fin du post, ajoute un bloc séparé "💡 Idées d'illustration" avec 2-3 propositions concrètes. Une phrase chacune : QUOI montrer + FORMAT (tableau comparatif chiffré, infographie, graphique, photo conceptuelle, schéma)."""
 
 
 def _esc(s: str) -> str:
@@ -87,17 +83,21 @@ def _section_html(geo: str, items: list[tuple[Article, dict]]) -> str:
     """
 
 
-def _build_linkedin_prompt(picks: list[Article]) -> str:
-    """Construit le prompt complet à coller dans Claude.ai pour générer les 3 posts."""
-    parts = [COMPACT_STYLE_BRIEF, "", "ARTICLES SÉLECTIONNÉS POUR AUJOURD'HUI :", ""]
-    for i, art in enumerate(picks, 1):
-        parts.append(f"--- ARTICLE {i} ---")
-        parts.append(f"Source : {art.source} ({art.section})")
-        parts.append(f"Titre : {art.title}")
-        parts.append(f"Résumé : {art.summary or '(résumé non fourni par le flux)'}")
-        parts.append(f"Lien : {art.link}")
-        parts.append("")
-    parts.append("Rédige les 3 posts maintenant, séparés clairement (Post 1, Post 2, Post 3).")
+def _build_linkedin_prompt_for(article: Article, article_number: int) -> str:
+    """Construit le prompt Claude.ai pour UN SEUL article (un bouton = un post = une conversation)."""
+    parts = [
+        COMPACT_STYLE_BRIEF,
+        "",
+        f"ARTICLE À TRAITER (post #{article_number} de la veille du jour) :",
+        f"Source : {article.source} ({article.section})",
+        f"Titre : {article.title}",
+        f"Résumé : {article.summary or '(résumé non fourni par le flux)'}",
+        f"Lien : {article.link}",
+        "",
+        "Livre maintenant :",
+        "1. Le post LinkedIn complet (prêt à copier-coller)",
+        "2. Le bloc \"💡 Idées d'illustration\" (2 à 3 propositions)",
+    ]
     return "\n".join(parts)
 
 
@@ -105,47 +105,48 @@ def _claude_cta_html(picks: list[Article]) -> str:
     if not picks:
         return ""
 
-    prompt_text = _build_linkedin_prompt(picks)
-    deep_link = f"{CLAUDE_AI_BASE}?q={urllib.parse.quote(prompt_text)}"
+    article_blocks = []
+    for i, art in enumerate(picks, 1):
+        prompt_text = _build_linkedin_prompt_for(art, i)
+        deep_link = f"{CLAUDE_AI_BASE}?q={urllib.parse.quote(prompt_text)}"
 
-    picks_summary = "".join(
-        f"<li style='margin-bottom:6px;'><strong>{_esc(art.source)}</strong> — "
-        f"<a href='{_esc(art.link)}' style='color:#1e3a8a;'>{_esc(art.title)}</a></li>"
-        for art in picks
-    )
+        article_blocks.append(f"""
+            <div style="margin-bottom:24px;padding:18px 20px;background:#f8fafc;border-left:4px solid #1e3a8a;border-radius:4px;">
+              <div style="font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:#1e3a8a;font-weight:600;margin-bottom:6px;">
+                Post #{i} · {_esc(art.source)}
+              </div>
+              <div style="font-size:15px;font-weight:600;line-height:1.4;color:#0f172a;margin-bottom:14px;">
+                <a href="{_esc(art.link)}" style="color:#0f172a;text-decoration:none;">{_esc(art.title)}</a>
+              </div>
+              <div style="margin-bottom:10px;">
+                <a href="{_esc(deep_link)}"
+                   style="display:inline-block;background:#1e3a8a;color:#ffffff;padding:10px 20px;
+                          font-size:14px;font-weight:600;text-decoration:none;border-radius:6px;">
+                  🚀 Générer ce post dans Claude.ai
+                </a>
+              </div>
+              <details style="margin-top:6px;">
+                <summary style="cursor:pointer;font-size:12px;color:#6b7280;">
+                  Voir / copier le prompt (pour relancer manuellement)
+                </summary>
+                <pre style="margin:10px 0 0;padding:12px;background:#ffffff;border:1px solid #e5e7eb;border-radius:4px;
+                            font-family:Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:#0f172a;
+                            white-space:pre-wrap;word-break:break-word;max-width:100%;overflow-x:auto;">{_esc(prompt_text)}</pre>
+              </details>
+            </div>
+        """)
 
     return f"""
         <h2 style="font-size:20px;color:#0f172a;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin:40px 0 16px;">
-          ✍️ Générer 3 posts LinkedIn
+          ✍️ Génère un post LinkedIn (à ton rythme)
         </h2>
 
-        <div style="font-size:14px;color:#374151;line-height:1.5;margin-bottom:14px;">
-          Les 3 articles les plus pertinents pour ta ligne éditoriale :
-        </div>
-        <ol style="font-size:14px;color:#0f172a;line-height:1.5;padding-left:20px;margin:0 0 20px 0;">
-          {picks_summary}
-        </ol>
-
-        <div style="text-align:center;margin:24px 0;">
-          <a href="{_esc(deep_link)}"
-             style="display:inline-block;background:#1e3a8a;color:#ffffff;padding:14px 28px;
-                    font-size:15px;font-weight:600;text-decoration:none;border-radius:6px;">
-            🚀 Générer les 3 posts dans Claude.ai
-          </a>
+        <div style="font-size:14px;color:#6b7280;line-height:1.5;margin-bottom:20px;">
+          Un bouton par article, une conversation Claude.ai indépendante à chaque clic.
+          Choisis les posts qui t'inspirent, saute les autres — pas de génération inutile.
         </div>
 
-        <div style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:24px;">
-          Le bouton ouvre Claude.ai avec un prompt pré-rempli — il suffit d'envoyer.
-        </div>
-
-        <details style="margin-top:24px;padding:16px;background:#f8fafc;border-left:4px solid #1e3a8a;border-radius:4px;">
-          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#1e3a8a;letter-spacing:0.3px;text-transform:uppercase;">
-            Voir / copier le prompt complet (pour relancer manuellement)
-          </summary>
-          <pre style="margin:14px 0 0;padding:14px;background:#ffffff;border:1px solid #e5e7eb;border-radius:4px;
-                      font-family:Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:#0f172a;
-                      white-space:pre-wrap;word-break:break-word;max-width:100%;overflow-x:auto;">{_esc(prompt_text)}</pre>
-        </details>
+        {''.join(article_blocks)}
     """
 
 

@@ -53,6 +53,58 @@ EDITORIAL_KEYWORDS: dict[str, int] = {
     "résultats": 5, "trimestriels": 6, "annuels": 5, "stratégie": 5,
     "transformation": 6, "acquisition": 7, "fusion": 7, "m&a": 8,
     "régulation": 6, "supervision": 5, "compliance": 5,
+
+    # Grandes banques US (relevantes pour Europe/US/RoW)
+    "jpmorgan": 10, "jp morgan": 10,
+    "goldman sachs": 10, "morgan stanley": 10,
+    "bank of america": 10, "citigroup": 10, "wells fargo": 10,
+    "state street": 8, "bny mellon": 8, "us bancorp": 7,
+
+    # Grandes banques européennes (en français ET anglais)
+    "deutsche bank": 10, "santander": 10, "banco santander": 10,
+    "ubs": 9, "credit suisse": 8,
+    "hsbc": 10, "barclays": 10, "standard chartered": 8,
+    "bbva": 9, "unicredit": 9, "commerzbank": 9,
+    "ing group": 8, "ing bank": 8,
+    "lloyds": 8, "natwest": 8,
+    "intesa sanpaolo": 8,
+
+    # Banques asiatiques / RoW (couverture "reste du monde")
+    "icbc": 8, "china construction bank": 8,
+    "mitsubishi ufj": 8, "sumitomo mitsui": 7, "mizuho": 7,
+    "dbs bank": 7, "ocbc": 6, "hdfc bank": 7, "sbi ": 6,
+    "itaú": 7, "bradesco": 6, "banco do brasil": 6,
+
+    # Asset managers globaux (contexte ETF/tokenisation)
+    "blackrock": 10, "vanguard": 8, "fidelity": 7,
+    "state street global": 8, "amundi": 10, "invesco": 7, "schroders": 6,
+
+    # Fintech / néobanques (anglais)
+    "digital bank": 7, "challenger bank": 7,
+    "banking-as-a-service": 8, "banking as a service": 8, "baas": 6,
+    "open banking": 7, "embedded finance": 7,
+    "revolut": 8, "monzo": 6, "n26": 6, "starling bank": 6,
+    "chime": 6, "klarna": 7, "wise ": 6, "nubank": 7,
+
+    # Crypto / tokenisation en anglais
+    "spot bitcoin etf": 12, "spot ether etf": 12, "bitcoin etf": 10,
+    "tokenized": 10, "tokenised": 10, "tokenization": 10,
+    "digital asset": 8, "digital assets": 8,
+    "on-chain": 8, "onchain": 8,
+    "cbdc": 9, "central bank digital currency": 10,
+
+    # IA appliquée à la finance (anglais)
+    "generative ai": 9, "gen ai": 8,
+    "ai banking": 10, "ai in banking": 10, "ai in finance": 10,
+    "agentic ai": 9, "ai agent": 7,
+
+    # Régulation US / UK (contexte crypto & banque)
+    "occ ": 6, "fdic": 7, "cftc": 6, "consumer financial protection": 6,
+    "fca ": 6, "pra ": 5,
+
+    # M&A / corporate en anglais
+    "merger": 7, "cross-border": 7, "buyout": 6, "spin-off": 6, "divestiture": 6,
+    "earnings": 5, "quarterly results": 6,
 }
 
 PENALTY_KEYWORDS: dict[str, int] = {
