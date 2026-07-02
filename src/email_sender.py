@@ -40,11 +40,20 @@ INTERDIT — marqueurs IA :
 PÉDAGOGIE OBLIGATOIRE :
 Chaque post transmet 2 à 3 leçons clés que le lecteur retient : un concept financier, un mécanisme, un enjeu stratégique, un précédent comparable. Pas juste "voici l'actu" — explique POURQUOI ça compte, CE QUI change, CE QU'IL FAUT SURVEILLER.
 
-CHECK FINAL :
+CHECK FINAL (marqueurs IA) :
 Avant de me donner le post, relis-le. Supprime tout guillemet de cadrage, tout tiret cadratin dans une phrase, toute formule de la liste interdite. Réécris sec et direct, conversationnel.
 
+FACT-CHECK OBLIGATOIRE :
+1. Ouvre le lien de l'article ci-dessous (utilise web_fetch/web_search si disponibles dans ta session).
+2. Chaque chiffre, date, montant, nom, citation, % dans ton post DOIT être sourcé depuis l'article. Aucune invention, aucune extrapolation. Sinon, retire-le.
+3. Si l'article est inaccessible (paywall, 404, lien mort), travaille STRICTEMENT à partir du titre + résumé fournis dans ce prompt.
+4. À la fin de ta réponse, livre un bloc "🔍 Fact-check" avec :
+   - Les 3 à 5 faits chiffrés ou nominatifs du post, chacun avec sa source (extrait de l'article, ou "titre/résumé RSS" en fallback).
+   - Les faits que tu as RETIRÉS du post par manque de source (transparence).
+   - Statut : "article fetch réussi" ou "article inaccessible — fallback RSS".
+
 IDÉES D'ILLUSTRATION :
-À la fin du post, ajoute un bloc séparé "💡 Idées d'illustration" avec 2-3 propositions concrètes. Une phrase chacune : QUOI montrer + FORMAT (tableau comparatif chiffré, infographie, graphique, photo conceptuelle, schéma)."""
+Ajoute un bloc séparé "💡 Idées d'illustration" avec 2-3 propositions concrètes. Une phrase chacune : QUOI montrer + FORMAT (tableau comparatif chiffré, infographie, graphique, photo conceptuelle, schéma)."""
 
 
 def _esc(s: str) -> str:
@@ -94,9 +103,10 @@ def _build_linkedin_prompt_for(article: Article, article_number: int) -> str:
         f"Résumé : {article.summary or '(résumé non fourni par le flux)'}",
         f"Lien : {article.link}",
         "",
-        "Livre maintenant :",
-        "1. Le post LinkedIn complet (prêt à copier-coller)",
-        "2. Le bloc \"💡 Idées d'illustration\" (2 à 3 propositions)",
+        "Livre maintenant, en 3 blocs séparés et clairement titrés :",
+        "1. Le POST LinkedIn complet (fact-checké, prêt à copier-coller)",
+        "2. 🔍 Fact-check (faits vérifiés + faits retirés + statut)",
+        "3. 💡 Idées d'illustration (2 à 3 propositions)",
     ]
     return "\n".join(parts)
 
