@@ -43,14 +43,15 @@ Chaque post transmet 2 à 3 leçons clés que le lecteur retient : un concept fi
 CHECK FINAL (marqueurs IA) :
 Avant de me donner le post, relis-le. Supprime tout guillemet de cadrage, tout tiret cadratin dans une phrase, toute formule de la liste interdite. Réécris sec et direct, conversationnel.
 
-FACT-CHECK OBLIGATOIRE :
-1. Ouvre le lien de l'article ci-dessous (utilise web_fetch/web_search si disponibles dans ta session).
-2. Chaque chiffre, date, montant, nom, citation, % dans ton post DOIT être sourcé depuis l'article. Aucune invention, aucune extrapolation. Sinon, retire-le.
-3. Si l'article est inaccessible (paywall, 404, lien mort), travaille STRICTEMENT à partir du titre + résumé fournis dans ce prompt.
-4. À la fin de ta réponse, livre un bloc "🔍 Fact-check" avec :
-   - Les 3 à 5 faits chiffrés ou nominatifs du post, chacun avec sa source (extrait de l'article, ou "titre/résumé RSS" en fallback).
-   - Les faits que tu as RETIRÉS du post par manque de source (transparence).
-   - Statut : "article fetch réussi" ou "article inaccessible — fallback RSS".
+FACT-CHECK OBLIGATOIRE (par ordre de priorité) :
+1. Ouvre le lien de l'article ci-dessous via web_fetch / web_search.
+2. Article accessible → chaque chiffre, date, montant, nom, citation, % dans ton post DOIT être sourcé depuis l'article.
+3. Article inaccessible (paywall, 404, lien mort) → PAS de fallback silencieux sur le résumé RSS. Utilise web_search pour retrouver la même actualité chez d'autres médias fiables : Reuters, AFP, Bloomberg, Les Échos, FT, WSJ, Handelsblatt, Nikkei, sites officiels des acteurs cités. Croise chaque fait chiffré ou nominatif avec au moins UNE source externe. Ne conserve que les faits confirmés.
+4. Aucune invention, aucune extrapolation. Un fait non confirmé → retire-le du post.
+5. Livre un bloc "🔍 Fact-check" listant :
+   - Les 3 à 5 faits chiffrés ou nominatifs du post, chacun avec sa/ses source(s) (URL ou nom de l'outlet).
+   - Les faits RETIRÉS du post par manque de confirmation (transparence).
+   - Statut : "article original vérifié" | "article inaccessible — recoupé sur [outlet1, outlet2]" | "impossible de recouper — post limité aux éléments du titre RSS".
 
 IDÉES D'ILLUSTRATION :
 Ajoute un bloc séparé "💡 Idées d'illustration" avec 2-3 propositions concrètes. Une phrase chacune : QUOI montrer + FORMAT (tableau comparatif chiffré, infographie, graphique, photo conceptuelle, schéma)."""
