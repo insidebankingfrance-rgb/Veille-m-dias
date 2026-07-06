@@ -6,11 +6,15 @@ from .config import GEO_SECTIONS, LINKEDIN_POST_COUNT, TOP_NEWS_COUNT
 from .sources import Article
 
 
-# Seuil minimum de pertinence pour qu'un article soit retenu.
-# Calibré pour qu'un article doive mentionner au moins un sujet phare de
-# la ligne éditoriale (banque française, crypto, IA finance, M&A…) et pas
-# seulement un mot générique comme « bourse » ou « rendement ».
-MIN_RELEVANCE_SCORE = 12
+# Seuil pour la section "top news" du mail — un article doit toucher un
+# sujet phare de la ligne éditoriale (banque, crypto, IA finance, M&A…)
+# pour être proposé dans la revue de presse.
+MIN_RELEVANCE_SCORE = 8
+
+# Seuil plancher pour les picks LinkedIn — plus permissif pour garantir
+# jusqu'à 3 boutons de génération, quitte à proposer des candidats
+# moyennement pertinents que l'utilisateur peut ignorer.
+LINKEDIN_MIN_SCORE = 5
 
 
 class CuratedArticle(TypedDict):
@@ -135,6 +139,23 @@ PENALTY_KEYWORDS: dict[str, int] = {
     "jeu vidéo": -25, "jeux vidéo": -25, "gaming": -20,
     "gta vi": -30, "rockstar games": -25, "take-two": -25,
     "streaming vidéo": -15, "netflix": -10,
+
+    # Corporate PR / RH / RSE / sponsoring (bruit sans valeur éditoriale)
+    "diversité et inclusion": -20, "diversity and inclusion": -20,
+    "d&i": -15, "dei ": -15, "esg report": -12,
+    "rapport rse": -15, "responsabilité sociale": -12,
+    "mécénat": -20, "sponsoring": -15, "partenariat sportif": -25,
+    "prix d'excellence": -15, "trophée": -15,
+    "nomination au conseil": -12, "nommé directeur": -10,
+    "célèbre son": -15, "anniversaire": -15,
+    "événement culturel": -20, "festival": -15,
+
+    # Analyses techniques marchés (mouvements intraday sans portée éditoriale)
+    "clôture en hausse": -15, "clôture en baisse": -15,
+    "séance en repli": -15, "séance en hausse": -15,
+    "wall street clôture": -12, "cac 40 termine": -12,
+    "closing bell": -12, "market close": -12,
+    "hits record high": -8, "record low": -8,
 }
 
 FRANCE_KEYWORDS: set[str] = {
@@ -247,9 +268,20 @@ def curate(articles: list[Article]) -> CurationResult:
         for rank, (idx, _art, score, geo) in enumerate(picked, 1)
     ]
 
-    # 3 articles avec le meilleur score pour les posts LinkedIn
-    linkedin_picks = [item["index"] for item in top_news[:LINKEDIN_POST_COUNT]]
+    # Picks LinkedIn : top 3 par score sur TOUS les articles (indépendamment
+    # du seuil des news sections), avec un plancher permissif à 5. Objectif :
+    # toujours 3 boutons de génération, sauf jour de news vraiment pauvre.
+    linkedin_pool = [
+        entry for entry in scored if entry[2] >= LINKEDIN_MIN_SCORE
+    ]
+    linkedin_picks = [entry[0] for entry in linkedin_pool[:LINKEDIN_POST_COUNT]]
 
-    print(f"[curator] {len(top_news)} articles retenus, "
+    # Diagnostic — imprime le top pour débogage quand la curation semble faible
+    print(f"[curator] {len(top_news)} articles retenus (seuil {MIN_RELEVANCE_SCORE}), "
           f"répartition : {dict(geo_counts)}")
+    print(f"[curator] {len(linkedin_picks)} picks LinkedIn (plancher {LINKEDIN_MIN_SCORE})")
+    print(f"[curator] Top 10 articles par score :")
+    for rank, (idx, art, score, geo) in enumerate(scored[:10], 1):
+        print(f"  #{rank:2d} score={score:3d} geo={geo:15s} "
+              f"[{art.source:15s}] {art.title[:75]}")
     return {"top_news": top_news, "linkedin_picks": linkedin_picks}

@@ -13,18 +13,18 @@ CURATOR_MODEL = "claude-opus-4-8"
 WRITER_MODEL = "claude-opus-4-8"
 
 RSS_SOURCES = [
-    # Les Échos : flux RSS natifs (services.lesechos.fr) en backup, mais Google News est
-    # plus robuste (les flux natifs Les Échos rejettent parfois feedparser). On part en
-    # Google News RSS pour toutes les sources : même schéma, même fiabilité.
+    # Les Échos : requête large pour maximiser la remontée d'articles FR
     ("Les Échos", "Finance",
-     "https://news.google.com/rss/search?q=site:lesechos.fr+(finance+OR+banque+OR+marchés+OR+investissement+OR+crypto+OR+bourse)&hl=fr&gl=FR&ceid=FR:fr"),
+     "https://news.google.com/rss/search?q=site:lesechos.fr+(banque+OR+finance+OR+bourse+OR+crypto+OR+fintech+OR+ETF+OR+tokenisation+OR+fusion+OR+acquisition)&hl=fr&gl=FR&ceid=FR:fr"),
 
+    # Sources anglo-saxonnes : requêtes resserrées sur banking/crypto/fintech
+    # pour éviter le bruit "markets close +0.5%" et remonter du contenu éditorialisable.
     ("Bloomberg", "Finance",
-     "https://news.google.com/rss/search?q=site:bloomberg.com+(finance+OR+banking+OR+markets+OR+crypto)&hl=en&gl=US&ceid=US:en"),
+     "https://news.google.com/rss/search?q=site:bloomberg.com+(bank+OR+banking+OR+fintech+OR+crypto+OR+stablecoin+OR+tokenization+OR+%22asset+management%22+OR+%22digital+bank%22+OR+neobank)&hl=en&gl=US&ceid=US:en"),
     ("Financial Times", "Finance",
-     "https://news.google.com/rss/search?q=site:ft.com+(finance+OR+banking+OR+markets+OR+crypto)&hl=en&gl=GB&ceid=GB:en"),
+     "https://news.google.com/rss/search?q=site:ft.com+(bank+OR+banking+OR+fintech+OR+crypto+OR+stablecoin+OR+tokenization+OR+%22asset+management%22+OR+%22digital+bank%22+OR+neobank)&hl=en&gl=GB&ceid=GB:en"),
     ("Reuters", "Finance",
-     "https://news.google.com/rss/search?q=site:reuters.com+(finance+OR+banking+OR+markets+OR+crypto)&hl=en&gl=US&ceid=US:en"),
+     "https://news.google.com/rss/search?q=site:reuters.com+(bank+OR+banking+OR+fintech+OR+crypto+OR+stablecoin+OR+tokenization+OR+%22asset+management%22+OR+%22digital+bank%22+OR+neobank)&hl=en&gl=US&ceid=US:en"),
 ]
 
 # User-Agent navigateur — certains flux RSS rejettent l'UA par défaut de feedparser.
