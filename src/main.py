@@ -41,16 +41,23 @@ def run() -> int:
 
     articles = fetch_recent_articles()
     if not articles:
-        print("[main] no articles fetched — aborting")
-        return 1
+        # Flux RSS injoignables — cas rare. On sort proprement (exit 0) pour
+        # ne PAS déclencher le mail d'échec GitHub. Pas de veille ce jour-là.
+        print("[main] no articles fetched (RSS unreachable?) — no email, exiting cleanly")
+        return 0
 
     print("[main] running heuristic curation...")
     curation = curate(articles)
     if not curation["top_news"]:
-        print("[main] curator returned no top news — aborting")
-        return 1
-    print(f"[main] curator selected {len(curation['top_news'])} articles, "
-          f"{len(curation['linkedin_picks'])} LinkedIn candidates")
+        # Aucun article finance pertinent (même en mode élargi, tout à score 0).
+        # On sort proprement sans mail d'échec plutôt que d'envoyer du hors-sujet.
+        print("[main] no relevant finance news today (all articles scored 0) — "
+              "no email, exiting cleanly")
+        return 0
+
+    mode = "élargi (jour calme)" if curation.get("relaxed") else "normal"
+    print(f"[main] curator selected {len(curation['top_news'])} articles "
+          f"(mode {mode}), {len(curation['linkedin_picks'])} LinkedIn candidates")
 
     html_body = build_html(curation, articles, today)
     send_email(html_body, today)

@@ -16,6 +16,10 @@ MIN_RELEVANCE_SCORE = 8
 # moyennement pertinents que l'utilisateur peut ignorer.
 LINKEDIN_MIN_SCORE = 5
 
+# En dessous de ce nombre d'articles au-dessus du seuil, on passe en mode
+# "sélection élargie" pour toujours livrer une veille (jamais de mail vide).
+MIN_TOP_NEWS = 3
+
 
 class CuratedArticle(TypedDict):
     index: int
@@ -28,6 +32,7 @@ class CuratedArticle(TypedDict):
 class CurationResult(TypedDict):
     top_news: list[CuratedArticle]
     linkedin_picks: list[int]
+    relaxed: bool  # True = jour calme, sélection élargie sous le seuil de qualité
 
 
 # Mots-clés pondérés selon la ligne éditoriale d'Inside Banking.
@@ -221,7 +226,7 @@ def _classify_geo(article: Article) -> str:
 
 def curate(articles: list[Article]) -> CurationResult:
     if not articles:
-        return {"top_news": [], "linkedin_picks": []}
+        return {"top_news": [], "linkedin_picks": [], "relaxed": False}
 
     scored = [
         (i, art, _score_relevance(art), _classify_geo(art))
@@ -257,6 +262,23 @@ def curate(articles: list[Article]) -> CurationResult:
         picked.append(entry)
         picked_indices.add(entry[0])
 
+    # 3e passage — DÉGRADATION GRACIEUSE (jours calmes : week-end, actu pauvre).
+    # Si trop peu d'articles passent le seuil, on remplit avec les meilleurs
+    # disponibles à condition qu'ils aient un score > 0 (on n'inclut JAMAIS les
+    # articles hors-sujet à score 0 : politique, lifestyle, faits divers).
+    # Le mail affichera une note "sélection élargie" quand ce passage est utilisé.
+    relaxed = False
+    if len(picked) < MIN_TOP_NEWS:
+        for entry in scored:
+            if len(picked) >= TOP_NEWS_COUNT:
+                break
+            if entry[0] in picked_indices or entry[2] <= 0:
+                continue
+            picked.append(entry)
+            picked_indices.add(entry[0])
+            geo_counts[entry[3]] += 1
+            relaxed = True
+
     top_news: list[CuratedArticle] = [
         {
             "index": idx,
@@ -277,11 +299,12 @@ def curate(articles: list[Article]) -> CurationResult:
     linkedin_picks = [entry[0] for entry in linkedin_pool[:LINKEDIN_POST_COUNT]]
 
     # Diagnostic — imprime le top pour débogage quand la curation semble faible
-    print(f"[curator] {len(top_news)} articles retenus (seuil {MIN_RELEVANCE_SCORE}), "
+    mode = "SÉLECTION ÉLARGIE (jour calme)" if relaxed else "normal"
+    print(f"[curator] {len(top_news)} articles retenus (seuil {MIN_RELEVANCE_SCORE}, mode {mode}), "
           f"répartition : {dict(geo_counts)}")
     print(f"[curator] {len(linkedin_picks)} picks LinkedIn (plancher {LINKEDIN_MIN_SCORE})")
     print(f"[curator] Top 10 articles par score :")
     for rank, (idx, art, score, geo) in enumerate(scored[:10], 1):
         print(f"  #{rank:2d} score={score:3d} geo={geo:15s} "
               f"[{art.source:15s}] {art.title[:75]}")
-    return {"top_news": top_news, "linkedin_picks": linkedin_picks}
+    return {"top_news": top_news, "linkedin_picks": linkedin_picks, "relaxed": relaxed}

@@ -183,6 +183,17 @@ def build_html(
     picks = [articles_by_index[i] for i in curation["linkedin_picks"] if i in articles_by_index]
     cta_html = _claude_cta_html(picks)
 
+    # Bannière "jour calme" quand la curation a dû élargir sous le seuil de qualité.
+    relaxed_banner = ""
+    if curation.get("relaxed"):
+        relaxed_banner = """
+            <div style="margin-bottom:20px;padding:12px 16px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:13px;color:#92400e;line-height:1.5;">
+              ☕ <strong>Jour calme</strong> — peu d'actualités finance saillantes ce matin.
+              Sélection élargie ci-dessous : les articles les plus proches de ta ligne éditoriale,
+              même s'ils sont moins percutants que d'habitude.
+            </div>
+        """
+
     date_str = today.strftime("%A %d %B %Y")
     fr_months = {
         "January": "janvier", "February": "février", "March": "mars",
@@ -224,6 +235,7 @@ def build_html(
           </tr>
           <tr>
             <td style="padding:24px 36px 36px;">
+              {relaxed_banner}
               {sections_html}
               {cta_html}
               <div style="margin-top:32px;padding-top:20px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;">
